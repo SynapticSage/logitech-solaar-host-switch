@@ -1,9 +1,9 @@
 %YAML 1.3
 ---
 - Key: [Forward Button, pressed]
-- Execute: [python3, __INSTALL_DIR__/switch_to_mac.py, pressed]
+- Execute: [python3, __INSTALL_DIR__/switch_host.py, pressed]
 ...
 ---
 - Key: [Forward Button, released]
-- Execute: [python3, __INSTALL_DIR__/switch_to_mac.py, released]
+- Execute: [python3, __INSTALL_DIR__/switch_host.py, released]
 ...

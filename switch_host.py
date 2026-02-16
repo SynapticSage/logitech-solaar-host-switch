@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Solaar helper: hold Forward Button >=400ms to switch both devices to Mac.
+"""Solaar helper: hold Forward Button >=400ms to switch both devices to another host.
 
 Sends HID++ change-host commands directly to the Unifying receiver's hidraw device,
 bypassing Solaar's CLI/D-Bus path which silently fails for the triggering device.

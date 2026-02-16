@@ -1,22 +1,22 @@
-# Solaar: Hold Forward Button to Switch Hosts
+# Logitech Host Switch
 
 Switch both your Logitech mouse and keyboard to another host by holding the Forward Button for 400ms. Short taps preserve normal browser-forward behavior.
 
-Built for multi-host setups where you want one-button switching from Linux to Mac (or any other host), complementing Logitech Options+ on the Mac side for switching back.
+Built for multi-host setups (Linux/Mac/Windows) where you want one-button switching from Linux. Uses [Solaar](https://github.com/pwr-Solaar/Solaar) for key diversion and raw HID++ for fast, reliable host switching.
 
 ## How It Works
 
 ```
 Hold Forward Button (>=400ms)
-  -> switch_to_mac.py sends raw HID++ change-host commands
+  -> switch_host.py sends raw HID++ change-host commands
   -> both keyboard and mouse switch to the target host
 
 Tap Forward Button (<400ms)
-  -> switch_to_mac.py emits XF86Forward keypress via evdev
+  -> switch_host.py emits XF86Forward keypress via evdev
   -> normal browser-forward behavior preserved
 ```
 
-Two Solaar rules intercept the Forward Button press and release events, calling `switch_to_mac.py` for each. The script measures hold duration using monotonic timestamps.
+Two Solaar rules intercept the Forward Button press and release events, calling `switch_host.py` for each. The script measures hold duration using monotonic timestamps.
 
 Host switching bypasses Solaar's CLI entirely — HID++ commands are written directly to the Unifying receiver's hidraw device for speed and reliability.
 
@@ -31,8 +31,8 @@ A companion `redivert_watch.py` daemon runs in the background to fix a Solaar bu
 ## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USER/solaar-linux-to-mac-switch-rule.git
-cd solaar-linux-to-mac-switch-rule
+git clone https://github.com/YOUR_USER/logitech-host-switch.git
+cd logitech-host-switch
 
 # 1. Edit config.yaml with your device settings (see Configuration below)
 nano config.yaml
@@ -83,11 +83,11 @@ Unifying Receiver
 | File | Purpose |
 |---|---|
 | `config.yaml` | Device-specific settings |
-| `switch_to_mac.py` | Hold detection + raw HID++ host switch |
+| `switch_host.py` | Hold detection + raw HID++ host switch |
 | `redivert_watch.py` | Daemon that re-applies Forward Button diversion after reconnect |
 | `rules.yaml` | Solaar rule definitions (symlinked by installer) |
 | `config_loader.py` | Shared config file loader |
-| `solaar-redivert.service` | systemd user service template |
+| `logitech-redivert.service` | systemd user service template |
 | `install.sh` | Installer (symlinks rules, installs service) |
 
 ## Manual Setup (Without install.sh)
@@ -101,7 +101,7 @@ In Solaar GUI: select your mouse -> **Key/Button Diversion** -> enable **Forward
 Edit `rules.yaml` — replace `__INSTALL_DIR__` with the full path to this directory, then symlink:
 
 ```bash
-ln -sf /path/to/solaar-linux-to-mac-switch-rule/rules.yaml ~/.config/solaar/rules.yaml
+ln -sf /path/to/logitech-host-switch/rules.yaml ~/.config/solaar/rules.yaml
 ```
 
 ### 3. Start the Redivert Watcher
@@ -111,10 +111,10 @@ ln -sf /path/to/solaar-linux-to-mac-switch-rule/rules.yaml ~/.config/solaar/rule
 python3 /path/to/redivert_watch.py &
 
 # Or install the systemd service manually
-cp solaar-redivert.service ~/.config/systemd/user/
+cp logitech-redivert.service ~/.config/systemd/user/
 # Edit the service file: replace __INSTALL_DIR__ with actual path
 systemctl --user daemon-reload
-systemctl --user enable --now solaar-redivert
+systemctl --user enable --now logitech-redivert
 ```
 
 ### 4. Restart Solaar
@@ -127,15 +127,15 @@ killall solaar; nohup solaar >/dev/null 2>&1 &
 
 ```bash
 # Dry-run hold test (>=400ms)
-cd /path/to/solaar-linux-to-mac-switch-rule
-python3 switch_to_mac.py pressed && sleep 0.5 && python3 switch_to_mac.py released --dry-run
+cd /path/to/logitech-host-switch
+python3 switch_host.py pressed && sleep 0.5 && python3 switch_host.py released --dry-run
 
 # Dry-run tap test (<400ms)
-python3 switch_to_mac.py pressed && sleep 0.1 && python3 switch_to_mac.py released --dry-run
+python3 switch_host.py pressed && sleep 0.1 && python3 switch_host.py released --dry-run
 
 # Check redivert service
-systemctl --user status solaar-redivert
-journalctl --user -u solaar-redivert -f
+systemctl --user status logitech-redivert
+journalctl --user -u logitech-redivert -f
 
 # Check switch log
 cat /tmp/.solaar-switch.log
@@ -147,7 +147,7 @@ cat /tmp/.solaar-switch.log
 - **Only keyboard switches (not mouse)**: Verify `receiver_hidraw`, `dev_number`, and `change_host_feature_index` in `config.yaml` match `solaar show` output
 - **Forward key doesn't work on short tap**: Ensure `python3-evdev` is installed and your user can write to `/dev/uinput`
 - **Permission denied on hidraw**: Solaar's udev rules should grant access. Check: `ls -la /dev/hidraw*`
-- **Redivert watcher not running**: `systemctl --user status solaar-redivert`
+- **Redivert watcher not running**: `systemctl --user status logitech-redivert`
 - **Switch works once then stops**: The redivert watcher should fix this automatically. Check its logs.
 
 ## Rollback
@@ -156,7 +156,7 @@ Un-divert the Forward Button in Solaar GUI to restore default behavior. The rule
 
 ```bash
 # Disable the service
-systemctl --user disable --now solaar-redivert
+systemctl --user disable --now logitech-redivert
 
 # Remove the rules symlink
 rm ~/.config/solaar/rules.yaml

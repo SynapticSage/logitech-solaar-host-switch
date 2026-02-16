@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "Installing solaar-switch from: $SCRIPT_DIR"
+echo "Installing logitech-host-switch from: $SCRIPT_DIR"
 
 # 1. Install Solaar rules (symlink)
 RULES_SRC="$SCRIPT_DIR/rules.yaml"
@@ -21,8 +21,8 @@ ln -sf "$RULES_SRC" "$RULES_DST"
 echo "Symlinked rules: $RULES_DST -> $RULES_SRC"
 
 # 2. Install systemd user service
-SERVICE_SRC="$SCRIPT_DIR/solaar-redivert.service"
-SERVICE_DST="$HOME/.config/systemd/user/solaar-redivert.service"
+SERVICE_SRC="$SCRIPT_DIR/logitech-redivert.service"
+SERVICE_DST="$HOME/.config/systemd/user/logitech-redivert.service"
 
 # Generate service file with actual path
 mkdir -p "$(dirname "$SERVICE_DST")"
@@ -31,8 +31,8 @@ echo "Installed service: $SERVICE_DST"
 
 # 3. Enable and start the service
 systemctl --user daemon-reload
-systemctl --user enable solaar-redivert.service
-systemctl --user start solaar-redivert.service
+systemctl --user enable logitech-redivert.service
+systemctl --user start logitech-redivert.service
 echo "Service enabled and started."
 
 echo ""
@@ -41,5 +41,5 @@ echo "  1. Edit $SCRIPT_DIR/config.yaml with your device settings"
 echo "  2. Divert Forward Button in Solaar GUI"
 echo "  3. Restart Solaar: killall solaar; nohup solaar >/dev/null 2>&1 &"
 echo ""
-echo "Check service status: systemctl --user status solaar-redivert"
-echo "View watcher log:     journalctl --user -u solaar-redivert -f"
+echo "Check service status: systemctl --user status logitech-redivert"
+echo "View watcher log:     journalctl --user -u logitech-redivert -f"
