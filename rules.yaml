@@ -1,0 +1,9 @@
+%YAML 1.3
+---
+- Key: [Forward Button, pressed]
+- Execute: [python3, /media/ryoung/Ark/Code/repos/Cat.Linux/solaar-linux-to-mac-switch-rule/switch_to_mac.py, pressed]
+...
+---
+- Key: [Forward Button, released]
+- Execute: [python3, /media/ryoung/Ark/Code/repos/Cat.Linux/solaar-linux-to-mac-switch-rule/switch_to_mac.py, released]
+...
