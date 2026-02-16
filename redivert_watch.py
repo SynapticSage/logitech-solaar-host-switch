@@ -69,17 +69,28 @@ def main():
     print(f"[redivert_watch] Polling every {POLL_INTERVAL}s for Forward Button diversion loss...", flush=True)
 
     while True:
-        diverted = get_actual_diversion()
+        try:
+            diverted = get_actual_diversion()
 
-        if diverted is False:
+            if diverted is False:
+                ts = time.strftime("%H:%M:%S")
+                print(f"[{ts}] Forward Button not diverted on device, re-applying...", flush=True)
+                redivert()
+            elif diverted is None:
+                pass  # device offline or unavailable, skip
+        except Exception as e:
             ts = time.strftime("%H:%M:%S")
-            print(f"[{ts}] Forward Button not diverted on device, re-applying...", flush=True)
-            redivert()
-        elif diverted is None:
-            pass  # device offline or unavailable, skip
+            print(f"[{ts}] poll error (continuing): {e}", flush=True)
 
         time.sleep(POLL_INTERVAL)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[redivert_watch] stopped.", flush=True)
+    except Exception as e:
+        ts = time.strftime("%H:%M:%S")
+        print(f"[{ts}] fatal: {e}", flush=True)
+        raise

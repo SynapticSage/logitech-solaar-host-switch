@@ -1,14 +1,77 @@
 #!/usr/bin/env python3
-"""Solaar helper: hold Forward Button >=400ms to switch both devices to Mac (Host 3)."""
+"""Solaar helper: hold Forward Button >=400ms to switch both devices to Mac (Host 3).
 
-import sys, time, os, subprocess
+Sends HID++ change-host commands directly to the Unifying receiver's hidraw device,
+bypassing Solaar's CLI/D-Bus path which silently fails for the triggering device.
+"""
+
+import sys, time, os, struct
 
 TIMESTAMP_FILE = "/tmp/.solaar-fwd-press-ts"
 HOLD_THRESHOLD = 0.4  # seconds
 
-MOUSE_NAME = "MX Master 3 Wireless Mouse"
-KEYBOARD_NAME = "MX Keys Keyboard"
-TARGET_HOST = "3"
+# Unifying receiver hidraw — both devices are behind this receiver.
+# Found via: solaar show | grep "Device path" (first entry = receiver)
+RECEIVER_HIDRAW = "/dev/hidraw0"
+
+# HID++ device numbers on the Unifying receiver
+MOUSE_DEV_NUM = 0x02
+KEYBOARD_DEV_NUM = 0x01
+
+# CHANGE_HOST feature indices (from `solaar show` feature list)
+# Mouse:    feature 10 = CHANGE_HOST => index 0x0A
+# Keyboard: feature  9 = CHANGE_HOST => index 0x09
+MOUSE_CHANGE_HOST_IDX = 0x0A
+KEYBOARD_CHANGE_HOST_IDX = 0x09
+
+# Host 3 = index 2 (zero-based)
+TARGET_HOST_INDEX = 0x02
+
+# HID++ constants
+HIDPP_LONG_MESSAGE_ID = 0x11
+WRITE_FNID = 0x10  # change-host write function
+
+
+def hidpp_change_host(hidraw_fd, dev_number, feature_index, host_index):
+    """Send a HID++ 2.0 change-host write command directly to the receiver."""
+    # request_id = (feature_index << 8) | (write_fnid & 0xF0) | software_id
+    # software_id: set bit 3 (0x08) + random low bits; use 0x08 for simplicity
+    request_id = (feature_index << 8) | WRITE_FNID | 0x08
+    # Build long HID++ message: report_id, dev_number, request_id (2 bytes), host_index, padding
+    data = struct.pack('!BB', (request_id >> 8) & 0xFF, request_id & 0xFF)
+    data += struct.pack('B', host_index)
+    data = data.ljust(18, b'\x00')  # pad to 18 bytes
+    msg = struct.pack('!BB', HIDPP_LONG_MESSAGE_ID, dev_number) + data
+    os.write(hidraw_fd, msg)
+
+
+def switch_both(dry_run=False):
+    """Send change-host to both mouse and keyboard via raw HID++."""
+    log = open("/tmp/.solaar-switch.log", "a")
+    ts = time.strftime("%H:%M:%S")
+
+    if dry_run:
+        log.write(f"[{ts}] [dry-run] would send HID++ change-host to mouse and keyboard\n")
+        print(f"[dry-run] would send HID++ change-host(host={TARGET_HOST_INDEX}) to {RECEIVER_HIDRAW}")
+        log.close()
+        return
+
+    log.write(f"[{ts}] sending HID++ change-host via {RECEIVER_HIDRAW}...\n")
+    log.flush()
+
+    try:
+        fd = os.open(RECEIVER_HIDRAW, os.O_RDWR)
+        # Switch keyboard first, then mouse
+        hidpp_change_host(fd, KEYBOARD_DEV_NUM, KEYBOARD_CHANGE_HOST_IDX, TARGET_HOST_INDEX)
+        log.write(f"[{ts}] keyboard HID++ sent\n")
+        log.flush()
+        hidpp_change_host(fd, MOUSE_DEV_NUM, MOUSE_CHANGE_HOST_IDX, TARGET_HOST_INDEX)
+        log.write(f"[{ts}] mouse HID++ sent\n")
+        os.close(fd)
+    except Exception as e:
+        log.write(f"[{ts}] error: {e}\n")
+
+    log.close()
 
 
 def on_pressed():
@@ -27,33 +90,7 @@ def on_released(dry_run=False):
     duration = time.monotonic() - press_time
 
     if duration >= HOLD_THRESHOLD:
-        # Long press -> switch both devices to Mac
-        if dry_run:
-            print(f"[dry-run] Hold {duration:.3f}s >= {HOLD_THRESHOLD}s: would switch both devices to {TARGET_HOST}")
-            print(f"[dry-run] solaar config '{MOUSE_NAME}' change-host '{TARGET_HOST}'")
-            print(f"[dry-run] solaar config '{KEYBOARD_NAME}' change-host '{TARGET_HOST}'")
-        else:
-            # Fire both in parallel via Popen — both HID++ switch commands
-            # get sent to Solaar near-simultaneously.
-            # Log to /tmp for debugging.
-            log = open("/tmp/.solaar-switch.log", "a")
-            ts = time.strftime("%H:%M:%S")
-            log.write(f"[{ts}] hold detected ({duration:.3f}s), switching...\n")
-            log.flush()
-            p1 = subprocess.Popen(
-                ["solaar", "config", MOUSE_NAME, "change-host", TARGET_HOST],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            )
-            p2 = subprocess.Popen(
-                ["solaar", "config", KEYBOARD_NAME, "change-host", TARGET_HOST],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            )
-            # Wait and log results
-            out1, err1 = p1.communicate(timeout=10)
-            log.write(f"[{ts}] mouse rc={p1.returncode} out={out1.decode().strip()} err={err1.decode().strip()}\n")
-            out2, err2 = p2.communicate(timeout=10)
-            log.write(f"[{ts}] keyboard rc={p2.returncode} out={out2.decode().strip()} err={err2.decode().strip()}\n")
-            log.close()
+        switch_both(dry_run=dry_run)
     else:
         # Short press -> emit Forward keypress
         if dry_run:
