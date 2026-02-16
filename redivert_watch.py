@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""Watch for MX Master 3 Forward Button diversion loss and re-apply it.
+"""Watch for Forward Button diversion loss and re-apply it.
 
 Solaar persists divert-keys in config but doesn't reliably re-push to the device
 after a host switch reconnect. This script polls `solaar show` (which reports actual
 device state) and re-applies diversion when it's lost.
 
-Run as: systemd user service, or just `nohup python3 redivert_watch.py &`
+Configuration is loaded from config.yaml in the same directory.
 """
 
-import re
 import subprocess
-import sys
 import time
 
-MOUSE_NAME = "MX Master 3 Wireless Mouse"
-DIVERT_KEY = "Forward Button"
-DIVERT_VALUE = "Diverted"
-POLL_INTERVAL = 1  # seconds between checks
+import config_loader
+
+cfg = config_loader.load()
+
+MOUSE_NAME = cfg["mouse"]["name"]
+DIVERT_KEY = cfg["redivert"]["key"]
+POLL_INTERVAL = cfg["redivert"]["poll_interval"]
 
 
 def get_actual_diversion():
@@ -36,11 +37,10 @@ def get_actual_diversion():
             return None
 
         for line in result.stdout.splitlines():
-            # Match the NON-saved line (actual device state)
             if "Key/Button Diversion" in line and "(saved)" not in line:
-                if "Forward Button:Diverted" in line:
+                if f"{DIVERT_KEY}:Diverted" in line:
                     return True
-                if "Forward Button:Regular" in line:
+                if f"{DIVERT_KEY}:Regular" in line:
                     return False
         return None
     except Exception:
@@ -48,10 +48,10 @@ def get_actual_diversion():
 
 
 def redivert():
-    """Force Forward Button diversion via solaar CLI."""
+    """Force key diversion via solaar CLI."""
     try:
         result = subprocess.run(
-            ["solaar", "config", MOUSE_NAME, "divert-keys", DIVERT_KEY, DIVERT_VALUE],
+            ["solaar", "config", MOUSE_NAME, "divert-keys", DIVERT_KEY, "Diverted"],
             capture_output=True, text=True, timeout=10,
         )
         if result.returncode == 0:
@@ -66,7 +66,7 @@ def redivert():
 
 
 def main():
-    print(f"[redivert_watch] Polling every {POLL_INTERVAL}s for Forward Button diversion loss...", flush=True)
+    print(f"[redivert_watch] Watching {MOUSE_NAME} / {DIVERT_KEY}, poll every {POLL_INTERVAL}s", flush=True)
 
     while True:
         try:
@@ -74,10 +74,8 @@ def main():
 
             if diverted is False:
                 ts = time.strftime("%H:%M:%S")
-                print(f"[{ts}] Forward Button not diverted on device, re-applying...", flush=True)
+                print(f"[{ts}] {DIVERT_KEY} not diverted on device, re-applying...", flush=True)
                 redivert()
-            elif diverted is None:
-                pass  # device offline or unavailable, skip
         except Exception as e:
             ts = time.strftime("%H:%M:%S")
             print(f"[{ts}] poll error (continuing): {e}", flush=True)

@@ -1,0 +1,42 @@
+# Solaar Host-Switch Configuration
+# Edit these values to match your setup. Find them via: solaar show
+
+# --- Unifying Receiver ---
+# The hidraw device for the receiver (not a paired device).
+# Find via: solaar show | grep "Device path" (the first one listed)
+receiver_hidraw: /dev/hidraw0
+
+# --- Target Host ---
+# Zero-based index: Host 1 = 0, Host 2 = 1, Host 3 = 2
+target_host_index: 2
+
+# --- Mouse ---
+mouse:
+  # Solaar device name (used by redivert watcher)
+  name: MX Master 3 Wireless Mouse
+  # HID++ device number on the Unifying receiver (from `solaar show` output, e.g. "2: MX Master 3")
+  dev_number: 2
+  # CHANGE_HOST feature index (from `solaar show` feature list for the mouse)
+  change_host_feature_index: 10
+
+# --- Keyboard ---
+keyboard:
+  # Solaar device name
+  name: MX Keys Keyboard
+  # HID++ device number on the Unifying receiver
+  dev_number: 1
+  # CHANGE_HOST feature index (from `solaar show` feature list for the keyboard)
+  change_host_feature_index: 9
+
+# --- Hold Detection ---
+# Minimum hold duration (seconds) on Forward Button to trigger host switch
+hold_threshold: 0.4
+
+# --- Redivert Watcher ---
+# Solaar doesn't reliably re-apply key diversion after a host switch reconnect.
+# The watcher polls and re-applies diversion when lost.
+redivert:
+  # Key to keep diverted
+  key: Forward Button
+  # Poll interval in seconds
+  poll_interval: 1

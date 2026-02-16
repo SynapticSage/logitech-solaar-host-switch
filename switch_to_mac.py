@@ -1,31 +1,29 @@
 #!/usr/bin/env python3
-"""Solaar helper: hold Forward Button >=400ms to switch both devices to Mac (Host 3).
+"""Solaar helper: hold Forward Button >=400ms to switch both devices to Mac.
 
 Sends HID++ change-host commands directly to the Unifying receiver's hidraw device,
 bypassing Solaar's CLI/D-Bus path which silently fails for the triggering device.
+
+Configuration is loaded from config.yaml in the same directory.
 """
 
 import sys, time, os, struct
+import config_loader
+
+cfg = config_loader.load()
 
 TIMESTAMP_FILE = "/tmp/.solaar-fwd-press-ts"
-HOLD_THRESHOLD = 0.4  # seconds
+HOLD_THRESHOLD = cfg["hold_threshold"]
 
-# Unifying receiver hidraw — both devices are behind this receiver.
-# Found via: solaar show | grep "Device path" (first entry = receiver)
-RECEIVER_HIDRAW = "/dev/hidraw0"
+RECEIVER_HIDRAW = cfg["receiver_hidraw"]
 
-# HID++ device numbers on the Unifying receiver
-MOUSE_DEV_NUM = 0x02
-KEYBOARD_DEV_NUM = 0x01
+MOUSE_DEV_NUM = cfg["mouse"]["dev_number"]
+KEYBOARD_DEV_NUM = cfg["keyboard"]["dev_number"]
 
-# CHANGE_HOST feature indices (from `solaar show` feature list)
-# Mouse:    feature 10 = CHANGE_HOST => index 0x0A
-# Keyboard: feature  9 = CHANGE_HOST => index 0x09
-MOUSE_CHANGE_HOST_IDX = 0x0A
-KEYBOARD_CHANGE_HOST_IDX = 0x09
+MOUSE_CHANGE_HOST_IDX = cfg["mouse"]["change_host_feature_index"]
+KEYBOARD_CHANGE_HOST_IDX = cfg["keyboard"]["change_host_feature_index"]
 
-# Host 3 = index 2 (zero-based)
-TARGET_HOST_INDEX = 0x02
+TARGET_HOST_INDEX = cfg["target_host_index"]
 
 # HID++ constants
 HIDPP_LONG_MESSAGE_ID = 0x11
@@ -34,13 +32,10 @@ WRITE_FNID = 0x10  # change-host write function
 
 def hidpp_change_host(hidraw_fd, dev_number, feature_index, host_index):
     """Send a HID++ 2.0 change-host write command directly to the receiver."""
-    # request_id = (feature_index << 8) | (write_fnid & 0xF0) | software_id
-    # software_id: set bit 3 (0x08) + random low bits; use 0x08 for simplicity
     request_id = (feature_index << 8) | WRITE_FNID | 0x08
-    # Build long HID++ message: report_id, dev_number, request_id (2 bytes), host_index, padding
     data = struct.pack('!BB', (request_id >> 8) & 0xFF, request_id & 0xFF)
     data += struct.pack('B', host_index)
-    data = data.ljust(18, b'\x00')  # pad to 18 bytes
+    data = data.ljust(18, b'\x00')
     msg = struct.pack('!BB', HIDPP_LONG_MESSAGE_ID, dev_number) + data
     os.write(hidraw_fd, msg)
 
@@ -61,7 +56,6 @@ def switch_both(dry_run=False):
 
     try:
         fd = os.open(RECEIVER_HIDRAW, os.O_RDWR)
-        # Switch keyboard first, then mouse
         hidpp_change_host(fd, KEYBOARD_DEV_NUM, KEYBOARD_CHANGE_HOST_IDX, TARGET_HOST_INDEX)
         log.write(f"[{ts}] keyboard HID++ sent\n")
         log.flush()
@@ -92,7 +86,6 @@ def on_released(dry_run=False):
     if duration >= HOLD_THRESHOLD:
         switch_both(dry_run=dry_run)
     else:
-        # Short press -> emit Forward keypress
         if dry_run:
             print(f"[dry-run] Tap {duration:.3f}s < {HOLD_THRESHOLD}s: would emit XF86Forward")
         else:
